@@ -3,6 +3,8 @@
 import RPi.GPIO as GPIO
 import time
 import random
+import signal
+import sys
 
 RED_LIGHT_TIME = 15
 YELLO_LIGHT_TIME = 1
@@ -35,12 +37,14 @@ def turn_on(pin, duration):
   print 'turn off'
   GPIO.output(pin, GPIO.LOW)
 
+def signal_handler(signal, frame):
+  finished()
+  sys.exit(0)
+
 if __name__ == '__main__':
+  signal.signal(signal.SIGTERM, signal_handler)
+  signal.signal(signal.SIGINT, signal_handler)
   setup()
   while (True):
-    try:
-      loop()
-    except KeyboardInterrupt:
-      finished()
-      break
+    loop()
 
