@@ -23,9 +23,9 @@ def setup():
   GPIO.output([RED_PIN, YELLOW_PIN, GREEN_PIN], GPIO.LOW)
 
 def loop():
-  turn_on(RED_PIN, RED_LIGHT_TIME + random.randint(0, RANDOM_TIME))
-  turn_on(YELLOW_PIN, YELLO_LIGHT_TIME)
   turn_on(GREEN_PIN, GREEN_LIGTH_TIME + random.randint(0, RANDOM_TIME)) 
+  turn_on(YELLOW_PIN, YELLO_LIGHT_TIME)
+  turn_on(RED_PIN, RED_LIGHT_TIME + random.randint(0, RANDOM_TIME))
 
 def finished():
   GPIO.output([RED_PIN, YELLOW_PIN, GREEN_PIN], GPIO.LOW)
