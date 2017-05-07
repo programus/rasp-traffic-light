@@ -7,7 +7,7 @@ import signal
 import sys
 
 RED_LIGHT_TIME = 15
-YELLO_LIGHT_TIME = 1
+YELLO_LIGHT_TIME = 1.8
 GREEN_LIGTH_TIME = 15
 
 RANDOM_TIME = 5
@@ -28,7 +28,7 @@ def loop():
   turn_on(RED_PIN, RED_LIGHT_TIME + random.randint(0, RANDOM_TIME))
 
 def finished():
-  GPIO.output([RED_PIN, YELLOW_PIN, GREEN_PIN], GPIO.LOW)
+  GPIO.cleanup()
 
 def turn_on(pin, duration):
   print 'turn on %d (%f)' % (pin, duration)
