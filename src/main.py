@@ -21,6 +21,7 @@ PRESS_LIGHT_PIN = 24
 WAIT_LIGHT_PIN = 25
 
 BUTTON_PIN = 4
+SWITCH_BUTTON_PIN = 9
 
 BUTTON_DELAY_TIME = 5
 
@@ -29,6 +30,13 @@ SOUND_PLAYER_TERMIATE_DELAY = 0.3
 
 NS_SOUND = 'NS.wav'
 WE_SOUND = 'WE.wav'
+
+DYN_SOUND = 1
+
+sounds = [
+    NS_SOUND,
+    WE_SOUND,
+]
 
 pin_map = {
   'r': RED_PIN,
@@ -39,7 +47,7 @@ pin_map = {
 }
 
 states = [
-  { 'name': 'all-green', 'on_time': 15, 'off_time': 0, 'repeat': 0, 'on_lights': 'gG', 'interruptable': False, 'rand_time': 3, 'enable_button': False, 'sound': NS_SOUND },
+  { 'name': 'all-green', 'on_time': 15, 'off_time': 0, 'repeat': 0, 'on_lights': 'gG', 'interruptable': False, 'rand_time': 3, 'enable_button': False, 'sound': DYN_SOUND },
   { 'name': 'blink-green', 'on_time': 0.5, 'off_time': 0.5, 'repeat': 5, 'on_lights': 'gG', 'off_lights': 'G', 'interruptable': True, 'rand_time': 0, 'enable_button': True },
   { 'name': 'human-red', 'on_time': 2, 'off_time': 0, 'repeat': 0, 'on_lights': 'gR', 'interruptable': False, 'rand_time': 0, 'enable_button': True },
   { 'name': 'yellow', 'on_time': 1.7, 'off_time': 0, 'repeat': 0, 'on_lights': 'yR', 'interruptable': False, 'rand_time': 0, 'enable_button': True },
@@ -48,6 +56,7 @@ states = [
 ]
 
 curr_state = None
+curr_sound_index = random.randint(0, len(sounds) - 1)
 button_event = threading.Event()
 button_state = 0  # x0b - diabled, x1b - enabled, 1xb - pressed, 0xb - not pressed
 player_process = None
@@ -65,6 +74,8 @@ def setup():
     ],
     GPIO.OUT)
   GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+  GPIO.setup(SWITCH_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+  GPIO.add_event_detect(SWITCH_BUTTON_PIN, GPIO.FALLING, callback=button_handler, bouncetime=1000)
   GPIO.output([
       RED_PIN,
       YELLOW_PIN,
@@ -81,6 +92,10 @@ def loop():
     process_state(state)
 
 def finished():
+  global player_process
+  if player_process:
+    player_process.terminate()
+    player_process = None
   GPIO.cleanup()
 
 def enable_button(enable):
@@ -88,7 +103,7 @@ def enable_button(enable):
   print 'enable button: %r' % enable
   if enable:
     if button_state & 1 == 0:
-      GPIO.add_event_detect(BUTTON_PIN, GPIO.FALLING, callback=button_pressed, bouncetime=200)
+      GPIO.add_event_detect(BUTTON_PIN, GPIO.FALLING, callback=button_handler, bouncetime=200)
       print 'added event detect'
     button_state |= 1
   else:
@@ -104,7 +119,18 @@ def update_button_light():
       (PRESS_LIGHT_PIN, WAIT_LIGHT_PIN), 
       (button_state == 1, button_state == 3))
 
-def button_pressed(channel):
+def button_handler(channel):
+  if channel == BUTTON_PIN:
+    button_pressed()
+  elif channel == SWITCH_BUTTON_PIN:
+    switch_sound()
+
+def switch_sound():
+  global curr_sound_index
+  curr_sound_index = (curr_sound_index + 1) % len(sounds)
+  print 'sound changed to %s' % sounds[curr_sound_index]
+
+def button_pressed():
   global button_state
   print 'button pressed'
   if button_state & 2 == 0:
@@ -140,6 +166,8 @@ def play_state_sound(state):
   global player_process
   sound = state.get('sound')
   if sound:
+    if sound == DYN_SOUND:
+      sound = sounds[curr_sound_index]
     filepath = os.path.realpath(os.path.join(os.path.dirname(__file__), SOUND_PATH, sound))
     player_process = subprocess.Popen(['omxplayer', '--loop', filepath], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     print 'playing %s in process[%d] ...' % (filepath, player_process.pid)
