@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import RPi.GPIO as GPIO
+import datetime
 import time
 import random
 import signal
@@ -32,10 +33,10 @@ pin_map = {
 states = [
   { 'name': 'all-green', 'on_time': 15, 'off_time': 0, 'repeat': 0, 'on_lights': 'gG', 'interruptable': False, 'rand_time': 3, 'enable_button': False },
   { 'name': 'blink-green', 'on_time': 0.5, 'off_time': 0.5, 'repeat': 5, 'on_lights': 'gG', 'off_lights': 'G', 'interruptable': True, 'rand_time': 0, 'enable_button': True },
-  { 'name': 'human-red', 'on_time': 2, 'off_time': 0, 'repeat': 0, 'lights': 'gR', 'interruptable': False, 'rand_time': 0, 'enable_button': True },
-  { 'name': 'yellow', 'on_time': 1.7, 'off_time': 0, 'repeat': 0, 'lights': 'yR', 'interruptable': False, 'rand_time': 0, 'enable_button': True },
-  { 'name': 'all-red-no-interrupt', 'on_time': 3, 'off_time': 0, 'repeat': 0, 'lights': 'rR', 'interruptable': False, 'rand_time': 3, 'enable_button': True },
-  { 'name': 'all-red', 'on_time': 12, 'off_time': 0, 'repeat': 0, 'lights': 'rR', 'interruptable': True, 'rand_time': 3, 'enable_button': True },
+  { 'name': 'human-red', 'on_time': 2, 'off_time': 0, 'repeat': 0, 'on_lights': 'gR', 'interruptable': False, 'rand_time': 0, 'enable_button': True },
+  { 'name': 'yellow', 'on_time': 1.7, 'off_time': 0, 'repeat': 0, 'on_lights': 'yR', 'interruptable': False, 'rand_time': 0, 'enable_button': True },
+  { 'name': 'all-red-no-interrupt', 'on_time': 3, 'off_time': 0, 'repeat': 0, 'on_lights': 'rR', 'interruptable': False, 'rand_time': 0, 'enable_button': True },
+  { 'name': 'all-red', 'on_time': 12, 'off_time': 0, 'repeat': 0, 'on_lights': 'rR', 'interruptable': True, 'rand_time': 3, 'enable_button': True },
 ]
 
 curr_state = None
@@ -65,12 +66,6 @@ def setup():
       WAIT_LIGHT_PIN
     ],
     GPIO.LOW)
-  GPIO.add_interrupt_callback(
-      BUTTON_PIN, 
-      button_pressed, 
-      edge='falling', 
-      pull_up_down=GPIO.PUD_UP, 
-      debounce_timeout_ms=20)
 
 def loop():
   for state in states:
@@ -80,13 +75,17 @@ def finished():
   GPIO.cleanup()
 
 def enable_button(enable):
+  global button_state
+  print 'enable button: %r' % enable
   if enable:
     if button_state & 1 == 0:
       GPIO.add_event_detect(BUTTON_PIN, GPIO.FALLING, callback=button_pressed, bouncetime=200)
+      print 'added event detect'
     button_state |= 1
   else:
     if button_state & 1:
       GPIO.remove_event_detect(BUTTON_PIN)
+      print 'removed event detect'
     button_state = 0
     button_event.clear()
   update_button_light()
@@ -96,12 +95,21 @@ def update_button_light():
       (PRESS_LIGHT_PIN, WAIT_LIGHT_PIN), 
       (button_state == 1, button_state == 3))
 
-def button_pressed():
-  time.sleep(BUTTON_DELAY_TIME)
-  button_event.set()
+def button_pressed(channel):
+  global button_state
+  print 'button pressed'
+  if button_state & 2 == 0:
+    print 'button state -> pressed'
+    button_state |= 2
+    update_button_light()
+    print 'wait turn green: %fs' % BUTTON_DELAY_TIME
+    time.sleep(BUTTON_DELAY_TIME)
+    print 'event set'
+    button_event.set()
 
 def process_state(state):
   curr_state = state
+  print state
   enable_button(state.get('enable_button'))
   all_lights, pins = zip(*pin_map.iteritems())
   for _ in xrange(max(1, state['repeat'])):
@@ -109,6 +117,7 @@ def process_state(state):
     on_lights = state['on_lights']
     GPIO.output(pins, map(lambda l: l in on_lights, all_lights))
     on_time = state['on_time'] + random.randint(0, state.get('rand_time') or 0)
+    print 'real on time: %f' % on_time
     wait(state, on_time)
 
     # turn off lights
@@ -127,10 +136,19 @@ def signal_handler(signal, frame):
   finished()
   sys.exit(0)
 
+def trace(frame, event, arg):
+  print "[%s] %s, %s:%d" % (datetime.datetime.now(), event, frame.f_code.co_filename, frame.f_lineno)
+  return trace
+
+
 if __name__ == '__main__':
-  signal.signal(signal.SIGTERM, signal_handler)
-  signal.signal(signal.SIGINT, signal_handler)
-  setup()
-  while (True):
-    loop()
+  # sys.settrace(trace)
+  try:
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    setup()
+    while (True):
+      loop()
+  finally:
+    finished()
 
