@@ -48,7 +48,7 @@ pin_map = {
 
 states = [
   { 'name': 'all-green', 'on_time': 15, 'off_time': 0, 'repeat': 0, 'on_lights': 'gG', 'interruptable': False, 'rand_time': 3, 'enable_button': False, 'sound': DYN_SOUND },
-  { 'name': 'blink-green', 'on_time': 0.5, 'off_time': 0.5, 'repeat': 5, 'on_lights': 'gG', 'off_lights': 'G', 'interruptable': True, 'rand_time': 0, 'enable_button': True },
+  { 'name': 'blink-green', 'on_time': 0.5, 'off_time': 0.5, 'repeat': 5, 'on_lights': 'gG', 'off_lights': 'G', 'interruptable': False, 'rand_time': 0, 'enable_button': True },
   { 'name': 'human-red', 'on_time': 2, 'off_time': 0, 'repeat': 0, 'on_lights': 'gR', 'interruptable': False, 'rand_time': 0, 'enable_button': True },
   { 'name': 'yellow', 'on_time': 1.7, 'off_time': 0, 'repeat': 0, 'on_lights': 'yR', 'interruptable': False, 'rand_time': 0, 'enable_button': True },
   { 'name': 'all-red-no-interrupt', 'on_time': 3, 'off_time': 0, 'repeat': 0, 'on_lights': 'rR', 'interruptable': False, 'rand_time': 0, 'enable_button': True },
@@ -56,6 +56,7 @@ states = [
 ]
 
 curr_state = None
+curr_state_start_time = 0
 curr_sound_index = random.randint(0, len(sounds) - 1)
 button_event = threading.Event()
 button_state = 0  # x0b - diabled, x1b - enabled, 1xb - pressed, 0xb - not pressed
@@ -137,13 +138,18 @@ def button_pressed():
     print 'button state -> pressed'
     button_state |= 2
     update_button_light()
-    print 'wait turn green: %fs' % BUTTON_DELAY_TIME
-    time.sleep(BUTTON_DELAY_TIME)
-    print 'event set'
-    button_event.set()
+    if not curr_state['interruptable'] or time.time() - curr_state_start_time < curr_state['on_time'] - BUTTON_DELAY_TIME:
+      print 'wait turn green: %fs' % BUTTON_DELAY_TIME
+      time.sleep(BUTTON_DELAY_TIME)
+      print 'event set'
+      button_event.set()
 
 def process_state(state):
+  global curr_state
+  global curr_state_start_time
   curr_state = state
+  curr_state_start_time = time.time()
+  print curr_state_start_time
   print state
   enable_button(state.get('enable_button'))
   play_state_sound(state)
